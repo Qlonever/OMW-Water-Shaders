@@ -87,7 +87,7 @@ vec3 doWaterSpecularLighting(vec2 screenCoord, vec3 viewPos, vec3 viewNormal, fl
             float lightDistance = length(lightPos);
             vec3 lightDir = lightPos / lightDistance;
             float attenuation = calcAttenuation(light, lightDistance) * clusterFade(viewPos, light.radius);
-            specular += light.specular.xyz * smoothstep(0.5, 0.8, specularIntensity(viewNormal, viewDir, shininess, lightDir)) * attenuation;
+            specular += light.specular.xyz * smoothstep(0.55, 0.75, specularIntensity(viewNormal, viewDir, shininess, lightDir)) * attenuation;
         }
     }
 
