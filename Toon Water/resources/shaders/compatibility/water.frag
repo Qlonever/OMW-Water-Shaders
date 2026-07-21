@@ -173,15 +173,15 @@ void main(void)
     // specular
     vec3 viewReflectDir = reflect(viewDir, normal);
     float phongTerm = max(dot(viewReflectDir, sunWorldDir), 0.0);
-    float specular = smoothstep(0.988, 0.996, phongTerm) * SPEC_BRIGHTNESS;
+    float specular = smoothstep(0.99, 0.995, phongTerm) * SPEC_BRIGHTNESS;
     specular = clamp(specular, 0.0, 1.0) * shadow * sunSpec.a;
 
     // posterized sheen effect
-    float darken = smoothstep(0.2, 0.05, posterize);
+    float darken = smoothstep(0.2, 0.1, posterize);
     vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.3) * gl_LightModel.ambient.xyz, reflection, 0.1);
     vec3 sheenColor = mix(SHEEN_COLOR * sunSpec.xyz, reflection, 0.4);
 
-    float sheenStep = (smoothstep(0.4, 0.55, posterize) + smoothstep(0.8, 1.0, posterize)) * mix(gradient, 1.0, 0.4);
+    float sheenStep = (smoothstep(0.45, 0.55, posterize) + smoothstep(0.85, 1.0, posterize)) * mix(gradient, 1.0, 0.4);
 
     float sheenTransparency = 1.0 - clamp(sheenStep * 0.3, 0.0, 1.0);
     float baseTransparency = 1.0 - clamp(0.4 + gradient * 1.3, 0.0, 1.0);
