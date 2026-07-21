@@ -1,9 +1,5 @@
 #version 120
 
-#if @useUBO
-    #extension GL_ARB_uniform_buffer_object : require
-#endif
-
 #if @useGPUShader4
     #extension GL_EXT_gpu_shader4: require
 #endif
@@ -77,11 +73,14 @@ uniform vec2 screenRes;
 
 #define PER_PIXEL_LIGHTING 0
 
-#include "shadows_fragment.glsl"
-#include "lib/light/lighting.glsl"
-#include "fog.glsl"
 #include "lib/water/rain_ripples.glsl"
 #include "lib/view/depth.glsl"
+#include "lib/light/struct.glsl"
+
+#include "shadows_fragment.glsl"
+#include "fog.glsl"
+
+uniform DirectionalLight sun;
 
 void main(void)
 {
@@ -89,7 +88,7 @@ void main(void)
 
     vec2 screenCoords = gl_FragCoord.xy / screenRes;
 
-    vec3 sunWorldDir = normalize((gl_ModelViewMatrixInverse * vec4(lcalcPosition(0).xyz, 0.0)).xyz);
+    vec3 sunWorldDir = normalize((gl_ModelViewMatrixInverse * sun.position).xyz);
     vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0.0,0.0,0.0,1.0)).xyz;
     vec3 viewDir = normalize(position.xyz - cameraPos.xyz);
 
@@ -150,9 +149,9 @@ void main(void)
     float fresnel = 1.0 - clamp(normalDot * normalDot - ALPHA_REDUCE, 0.0, 1.0);
 
     // simple rain ripples
-    vec3 simpleRain = vec3(rainRipple.w * length(gl_LightModel.ambient.xyz) * 0.08);
+    vec3 simpleRain = vec3(rainRipple.w * length(sun.ambient.xyz) * 0.08);
 
-    vec4 sunSpec = lcalcSpecular(0);
+    vec4 sunSpec = sun.specular;
     // alpha component is sun visibility; we want to start fading lighting effects when visibility is low
     sunSpec.a = min(1.0, sunSpec.a / SUN_SPEC_FADING_THRESHOLD);
 
@@ -173,7 +172,7 @@ void main(void)
 
     // reflection
     vec3 waterColor = LERP_CLOSE_COLOR;
-    waterColor *= mix(vec3(1.0), gl_LightModel.ambient.xyz * BASE_AMBIENT, LERP_CLOSE_AMBIENT);
+    waterColor *= mix(vec3(1.0), sun.ambient.xyz * BASE_AMBIENT, LERP_CLOSE_AMBIENT);
 
     vec3 reflection = sampleReflectionMap(screenCoords + screenCoordsOffset * REFL_BUMP).rgb;
     reflection = min(reflection + specular, vec3(1.0)) * ENV_REDUCE_COLOR;

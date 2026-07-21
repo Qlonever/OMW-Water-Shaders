@@ -28,4 +28,4 @@ This will likely conflict with other core shader mods. Combine them with caution
 Qlonever - Mod author, shader modification
 
 OpenMW contributors - Wrote the shader code this mod is built off of
-(https://gitlab.com/OpenMW/openmw/-/tree/openmw-51)
+(https://gitlab.com/OpenMW/openmw)
