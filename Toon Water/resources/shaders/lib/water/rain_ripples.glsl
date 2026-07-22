@@ -1,7 +1,7 @@
 #ifndef LIB_WATER_RIPPLES
 #define LIB_WATER_RIPPLES
 
-const float RAIN_RIPPLE_GAPS = 10.0;
+const float RAIN_RIPPLE_GAPS = 8.0;
 const float RAIN_RIPPLE_RADIUS = 0.3;
 
 float scramble(float x, float z)
@@ -50,7 +50,6 @@ vec4 circle(vec2 coords, vec2 corner, float adjusted_time)
   float ringfollower = (phase-d/r)/RAIN_RING_TIME_OFFSET-1.0; // -1.0 ~ +1.0 cover the breadth of the ripple's ring
 
 #if @rainRippleDetail > 0
-
 // normal mapped ripples
   if(ringfollower < -1.0 || ringfollower > 1.0)
     return vec4(0.0);
@@ -71,12 +70,11 @@ vec4 circle(vec2 coords, vec2 corner, float adjusted_time)
   ret.z *= range_limit;
   return ret;
 #else
-
 // ring-only ripples
   if(ringfollower < -1.0 || ringfollower > 0.5)
     return vec4(0.0);
 
-  float energy = 1.0-phase*phase;
+  float energy = 1.0-phase;
   float height = blip(ringfollower*1.0+0.25)*energy; // fake specularity
 
   return vec4(0.0, 0.0, 0.0, height);
@@ -87,7 +85,7 @@ vec4 rain(vec2 uv, float time)
   uv *= RAIN_RIPPLE_GAPS;
   vec2 f_part = fract(uv);
   vec2 i_part = floor(uv);
-  float adjusted_time = time * 1.2 + randPhase(i_part);
+  float adjusted_time = time * 1.0 + randPhase(i_part);
 #if @rainRippleDetail > 0
   vec4 a = circle(f_part, i_part, adjusted_time);
   vec4 b = circle(f_part, i_part, adjusted_time - RAIN_RING_TIME_OFFSET);
@@ -97,9 +95,7 @@ vec4 rain(vec2 uv, float time)
   ret.xy = a.xy - b.xy/2.0 + c.xy/4.0 - d.xy/8.0;
   // z should always point up
   ret.z  = a.z  + b.z /2.0 + c.z /4.0 + d.z /8.0;
-  //ret.xyz *= 1.5;
-  // fake specularity looks weird if we use every single ring, also if the inner rings are too bright 
-  ret.w  = (a.w + c.w /8.0)*1.5;
+  ret.w = 0.0;
   return ret;
 #else
   return circle(f_part, i_part, adjusted_time) * 1.5;
@@ -114,7 +110,11 @@ vec4 rainCombined(vec2 uv, float time) // returns ripple normal in xyz and fake 
 {
   return
     rain(uv, time)
-  + rain(complex_mult(uv, vec2(0.4, 0.7)) + vec2(1.2, 3.0),time)
+#if @rainRippleDetail == 0
+    + rain(complex_mult(uv, vec2(0.4, 0.7)) + vec2(1.2, 3.0),time)
+#else
+    + rain(uv + vec2(1.2, 3.0),time)
+#endif
 #if @rainRippleDetail == 2
       + rain(uv * 0.75 + vec2( 3.7,18.9),time)
       + rain(uv * 0.9  + vec2( 5.7,30.1),time)

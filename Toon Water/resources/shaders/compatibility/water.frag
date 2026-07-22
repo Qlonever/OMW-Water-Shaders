@@ -104,7 +104,6 @@ void main(void)
     float distToCenter = length(rippleMapUV - vec2(0.5));
     float blendClose = smoothstep(10, 60, linearDepth);
     float blendFar = 1.0 - smoothstep(0.3, 0.4, distToCenter);
-    float distortionLevel = 2.0;
     vec2 actorRipple = texture2D(rippleMap, rippleMapUV).ba * ACTOR_RIPPLE_STRENGTH * blendFar * blendClose;
 
     vec4 rainRipple;
@@ -134,7 +133,7 @@ void main(void)
     float gradient = clamp(fresnel_dielectric(viewDir, vec3(0.0, 0.0, 1.0), ior), 0.0, 1.0);
     float posterize = 1.0 - abs(dot(viewDir, normal));
     posterize *= posterize;
-    posterize += rainRipple.w * 0.2;
+    posterize += rainRipple.w * 1.0;
 
 #if @waterRefraction
     float depthSample = linearizeDepth(sampleRefractionDepthMap(screenCoords), near, far);
