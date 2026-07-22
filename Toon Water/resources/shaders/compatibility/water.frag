@@ -1,9 +1,5 @@
 #version 120
 
-#if @useUBO
-    #extension GL_ARB_uniform_buffer_object : require
-#endif
-
 #if @useGPUShader4
     #extension GL_EXT_gpu_shader4: require
 #endif
@@ -73,12 +69,15 @@ uniform vec2 screenRes;
 
 #define PER_PIXEL_LIGHTING 0
 
-#include "shadows_fragment.glsl"
-#include "lib/light/lighting.glsl"
-#include "fog.glsl"
 #include "lib/water/fresnel.glsl"
 #include "lib/water/rain_ripples.glsl"
 #include "lib/view/depth.glsl"
+#include "lib/light/struct.glsl"
+
+#include "shadows_fragment.glsl"
+#include "fog.glsl"
+
+uniform DirectionalLight sun;
 
 void main(void)
 {
@@ -86,7 +85,7 @@ void main(void)
 
     float shadow = unshadowedLightRatio(linearDepth);
 
-    vec3 sunWorldDir = normalize((gl_ModelViewMatrixInverse * vec4(lcalcPosition(0).xyz, 0.0)).xyz);
+    vec3 sunWorldDir = normalize((gl_ModelViewMatrixInverse * sun.position).xyz);
     vec3 cameraPos = (gl_ModelViewMatrixInverse * vec4(0,0,0,1)).xyz;
     vec3 viewDir = normalize(position.xyz - cameraPos.xyz);
 
@@ -104,7 +103,6 @@ void main(void)
     float distToCenter = length(rippleMapUV - vec2(0.5));
     float blendClose = smoothstep(10, 60, linearDepth);
     float blendFar = 1.0 - smoothstep(0.3, 0.4, distToCenter);
-    float distortionLevel = 2.0;
     vec2 actorRipple = texture2D(rippleMap, rippleMapUV).ba * ACTOR_RIPPLE_STRENGTH * blendFar * blendClose;
 
     vec4 rainRipple;
@@ -134,7 +132,7 @@ void main(void)
     float gradient = clamp(fresnel_dielectric(viewDir, vec3(0.0, 0.0, 1.0), ior), 0.0, 1.0);
     float posterize = 1.0 - abs(dot(viewDir, normal));
     posterize *= posterize;
-    posterize += rainRipple.w * 0.2;
+    posterize += rainRipple.w * 1.0;
 
 #if @waterRefraction
     float depthSample = linearizeDepth(sampleRefractionDepthMap(screenCoords), near, far);
@@ -166,19 +164,25 @@ void main(void)
     // reflection
     vec3 reflection = sampleReflectionMap(screenCoords + screenCoordsOffset * REFL_BUMP).rgb;
 
-    vec4 sunSpec = lcalcSpecular(0);
+    vec4 sunSpec = sun.specular;
     // alpha component is sun visibility; we want to start fading lighting effects when visibility is low
     sunSpec.a = min(1.0, sunSpec.a / SUN_SPEC_FADING_THRESHOLD);
 
     // specular
     vec3 viewReflectDir = reflect(viewDir, normal);
     float phongTerm = max(dot(viewReflectDir, sunWorldDir), 0.0);
-    float specular = smoothstep(0.99, 0.995, phongTerm) * SPEC_BRIGHTNESS;
-    specular = clamp(specular, 0.0, 1.0) * shadow * sunSpec.a;
+    float sunSpecular = smoothstep(0.99, 0.995, phongTerm) * SPEC_BRIGHTNESS;
+    sunSpecular = clamp(sunSpecular, 0.0, 1.0) * shadow * sunSpec.a;
+
+    float skyBrightness = (sunSpec.r + sunSpec.g + sunSpec.b) / 3.0;
+    float pointSpecDampen = 1.0 - skyBrightness * 0.8;
+    vec3 pointSpecular = doWaterSpecularLighting(gl_FragCoord.xy, (gl_ModelViewMatrix * vec4(position.xyz, 1.0)).xyz, normalize(gl_NormalMatrix * (normal)), pointSpecDampen * pointSpecDampen) * 6.0;
+
+    vec3 combinedSpecular = (sunSpecular * sunSpec.rgb + pointSpecular);
 
     // posterized sheen effect
     float darken = smoothstep(0.2, 0.1, posterize);
-    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.3) * gl_LightModel.ambient.xyz, reflection, 0.1);
+    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.3) * sun.ambient.xyz, reflection, 0.1);
     vec3 sheenColor = mix(SHEEN_COLOR * sunSpec.xyz, reflection, 0.4);
 
     float sheenStep = (smoothstep(0.45, 0.55, posterize) + smoothstep(0.85, 1.0, posterize)) * mix(gradient, 1.0, 0.4);
@@ -191,7 +195,7 @@ void main(void)
     vec3 surface = mix(sheenColor, baseColor, sheenTransparency);
 
 #if @waterRefraction
-    vec3 fogColor = WATER_COLOR * gl_LightModel.ambient.xyz * 0.5;
+    vec3 fogColor = WATER_COLOR * sun.ambient.xyz * 0.5;
 
     // refraction
     vec3 refraction = sampleRefractionMap(screenCoords - screenCoordsOffset * REFR_BUMP * shoreOffset).rgb;
@@ -205,16 +209,16 @@ void main(void)
         refraction = mix(fogColor, refraction * visibilityExp.rgb, visibilityExp.a);
     }
 
-    specular *= 0.45 + gradient;
+    combinedSpecular *= 0.45 + gradient;
 
     gl_FragData[0].rgb = mix(refraction, surface, waterOpacity);
     gl_FragData[0].a = 1.0;
 #else
     gl_FragData[0].rgb = surface;
-    gl_FragData[0].a = waterOpacity + specular * gradient;
+    gl_FragData[0].a = waterOpacity + length(combinedSpecular) * gradient;
 #endif
 
-    gl_FragData[0].rgb += specular * sunSpec.rgb;
+    gl_FragData[0].rgb += combinedSpecular;
 
 #if @waterRefraction && @wobblyShores
     gl_FragData[0].rgb = mix(rawRefraction, gl_FragData[0].rgb, shoreOffset);
