@@ -95,5 +95,5 @@ vec3 doWaterSpecularLighting(vec2 screenCoord, vec3 viewPos, vec3 viewNormal, fl
 }
 #else
 vec3 doSpecularLighting(vec2 screenCoord, vec3 viewPos, vec3 viewNormal) { return vec3(0.0); }
-vec3 doWaterSpecularLighting(vec2 screenCoord, vec3 viewPos, vec3 viewNormal) { return vec3(0.0); }
+vec3 doWaterSpecularLighting(vec2 screenCoord, vec3 viewPos, vec3 viewNormal, float dampen) { return vec3(0.0); }
 #endif
