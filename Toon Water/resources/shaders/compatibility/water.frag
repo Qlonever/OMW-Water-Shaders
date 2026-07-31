@@ -106,17 +106,21 @@ void main(void)
     float blendFar = 1.0 - smoothstep(0.3, 0.4, distToCenter);
     vec2 actorRipple = texture2D(rippleMap, rippleMapUV).ba * ACTOR_RIPPLE_STRENGTH * blendFar * blendClose;
 
+    vec2 normalSum;
     vec4 rainRipple;
 
     if (rainIntensity > 0.01) {
         height += (heightSamples(UV, 1.2, vec2(-0.14,  0.10), waterTimer, mat2( 1,  0,  0,  1)).xyzw * rainIntensity
                 +  heightSamples(UV, 1.2, vec2( 0.07, -0.13), waterTimer, mat2( 0,  1, -1,  0)).wxyz * rainIntensity)
                 * RAIN_WAVE_STRENGTH;
-        rainRipple = rainCombined(position.xy * 0.001 + actorRipple * 0.01, waterTimer) * RAIN_RIPPLE_STRENGTH * clamp(rainIntensity, 0.0, 1.0) * clamp(1.2 - linearDepth * 0.0003, 0.0, 1.0);
-    } else
+        normalSum = height.zw - height.xy;
+        rainRipple = rainCombined(position.xy * 0.001 + actorRipple * 0.01 + normalSum * 0.02, waterTimer) * RAIN_RIPPLE_STRENGTH * clamp(rainIntensity, 0.0, 1.0) * clamp(1.2 - linearDepth * 0.0003, 0.0, 1.0);
+    } else {
+        normalSum = height.zw - height.xy;
         rainRipple = vec4(0.0);
+    }
 
-    vec2 normalSum = height.zw - height.xy + actorRipple.xy + rainRipple.xy;
+    normalSum += actorRipple.xy + rainRipple.xy;
     vec3 normal = normalize(vec3(normalSum * clamp(linearDepth * 0.01, 0.5, 1.0), 0.2));
     // This makes point specular work underwater
     if (cameraPos.z < 0.0)
@@ -133,13 +137,13 @@ void main(void)
     float gradient = clamp(fresnel_dielectric(viewDir, vec3(0.0, 0.0, 1.0), ior), 0.0, 1.0);
     float posterize = 1.0 - abs(dot(viewDir, normal));
     posterize *= posterize;
-    posterize += rainRipple.w * 1.0;
+    posterize += rainRipple.w * 0.4;
 
 #if @waterRefraction
     float depthSample = linearizeDepth(sampleRefractionDepthMap(screenCoords), near, far);
     float surfaceDepth = linearDepth;
     float realWaterDepth = depthSample - surfaceDepth;  // undistorted water depth in view direction, independent of frustum
-    screenCoordsOffset *= clamp(realWaterDepth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
+    float shoreFlat = clamp(realWaterDepth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
     float depthSampleDistorted = linearizeDepth(sampleRefractionDepthMap(screenCoords - screenCoordsOffset * REFR_BUMP), near, far);
     float waterDepthDistorted = max(depthSampleDistorted - surfaceDepth, 0.0);
 
@@ -177,12 +181,12 @@ void main(void)
 
     // posterized sheen effect
     float darken = smoothstep(0.15, 0.1, posterize);
-    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.25) * gl_LightModel.ambient.xyz, reflection, 0.1);
-    vec3 sheenColor = mix(SHEEN_COLOR * sunSpec.xyz, reflection, 0.4);
+    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.2) * gl_LightModel.ambient.xyz, reflection, 0.1);
+    vec3 sheenColor = mix(SHEEN_COLOR * sunSpec.xyz, reflection, 0.3);
 
-    float sheenStep = (smoothstep(0.45, 0.55, posterize) + smoothstep(0.85, 1.0, posterize)) * mix(gradient, 1.0, 0.4);
+    float sheenStep = (smoothstep(0.45, 0.55, posterize) + smoothstep(0.85, 1.0, posterize) * 1.5) * mix(gradient, 1.0, 0.4);
 
-    float sheenTransparency = 1.0 - clamp(sheenStep * 0.3, 0.0, 1.0);
+    float sheenTransparency = 1.0 - clamp(sheenStep * 0.2, 0.0, 1.0);
     float baseTransparency = 1.0 - clamp(0.5 + gradient * 1.3, 0.0, 1.0);
 
     float waterOpacity = 1.0 - baseTransparency * sheenTransparency;
@@ -193,14 +197,14 @@ void main(void)
     vec3 fogColor = WATER_COLOR * gl_LightModel.ambient.xyz * 0.5;
 
     // refraction
-    vec3 refraction = sampleRefractionMap(screenCoords - screenCoordsOffset * REFR_BUMP * shoreOffset).rgb;
+    vec3 refraction = sampleRefractionMap(screenCoords - screenCoordsOffset * REFR_BUMP * shoreOffset * shoreFlat).rgb;
     vec3 rawRefraction = refraction;
 
     // brighten up the refraction underwater
     if (cameraPos.z < 0.0)
         refraction = clamp(refraction * 1.5, 0.0, 1.0);
     else {
-        vec4 visibilityExp = clamp(pow(VISIBILITY, vec4(waterDepthDistorted * 0.0012)), 0.0, 1.0);
+        vec4 visibilityExp = clamp(pow(VISIBILITY, vec4(waterDepthDistorted * 0.001)), 0.0, 1.0);
         refraction = mix(fogColor, refraction * visibilityExp.rgb, visibilityExp.a);
     }
 
