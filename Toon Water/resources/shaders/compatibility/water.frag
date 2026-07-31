@@ -34,10 +34,10 @@ const float SPEC_BRIGHTNESS = 0.8;                      // boosts the brightness
 
 const float BUMP_SUPPRESS_DEPTH = 300.0;                // at what water depth bumpmap will be suppressed for reflections and refractions (prevents artifacts at shores)
 
-const float SHORE_DEPTH = 40.0;                           // depth to use for shore outlines
+const float SHORE_DEPTH = 40.0;                         // depth to use for shore outlines
 
-const vec3 WATER_COLOR = vec3(0.2, 0.3, 0.4);           // surface tint /  refraction fog color
-const vec3 SHEEN_COLOR = vec3(0.7, 0.8, 0.9);           // color of faux reflection
+const vec3 WATER_COLOR = vec3(0.15, 0.25, 0.4);         // surface tint /  refraction fog color
+const vec3 SHEEN_COLOR = vec3(0.6, 0.75, 1.0);          // color of faux reflection
 
 #if @wobblyShores
 const float WOBBLY_SHORE_FADE_DISTANCE = 6200.0;        // fade out wobbly shores to mask precision errors, the effect is almost impossible to see at a distance
@@ -176,14 +176,14 @@ void main(void)
     specular = clamp(specular, 0.0, 1.0) * shadow * sunSpec.a;
 
     // posterized sheen effect
-    float darken = smoothstep(0.2, 0.1, posterize);
-    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.3) * gl_LightModel.ambient.xyz, reflection, 0.1);
+    float darken = smoothstep(0.15, 0.1, posterize);
+    vec3 baseColor = mix(WATER_COLOR * (1.0 - darken * 0.25) * gl_LightModel.ambient.xyz, reflection, 0.1);
     vec3 sheenColor = mix(SHEEN_COLOR * sunSpec.xyz, reflection, 0.4);
 
     float sheenStep = (smoothstep(0.45, 0.55, posterize) + smoothstep(0.85, 1.0, posterize)) * mix(gradient, 1.0, 0.4);
 
     float sheenTransparency = 1.0 - clamp(sheenStep * 0.3, 0.0, 1.0);
-    float baseTransparency = 1.0 - clamp(0.4 + gradient * 1.3, 0.0, 1.0);
+    float baseTransparency = 1.0 - clamp(0.5 + gradient * 1.3, 0.0, 1.0);
 
     float waterOpacity = 1.0 - baseTransparency * sheenTransparency;
 
